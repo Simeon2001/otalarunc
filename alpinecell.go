@@ -19,7 +19,7 @@ func main() {
 	switch os.Args[1] {
 	case "run":
 		stage1UserNS()
-	case "parent":
+	case "child":
 		spawnContainer()
 	//case "child":
 	//	containerInitProcess()

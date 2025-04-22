@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"golang.org/x/sys/unix"
 	"log"
 	"os"
@@ -54,37 +53,15 @@ func spawnContainer() {
 	// Move to our mounted project folder
 	must("chdir to where cwd dir are failed: ", os.Chdir(mountedProjectDir))
 
-	cmd := exec.Command(os.Args[2], os.Args[3:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), "PATH=/bin:/usr/bin:/sbin:/usr/sbin")
+	cmdPath, err := exec.LookPath(os.Args[2])
+	must("cmdpath error: ", err)
 
-	// Create a context that cancels after 20 minutes
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	defer cancel() // Always call cancel to release resources
+	// Build args for the target command (os.Args[2:] = command and its args)
+	cmdArgs := os.Args[2:]
 
-	// Create a channel to signal when command completes
-	cmdDone := make(chan error)
-
-	// Start a goroutine to run the command and signal when done
-	go func() {
-		cmdDone <- cmd.Run()
-	}()
-
-	// Wait for either command completion or timeout
-	select {
-	case err := <-cmdDone:
-		if err != nil {
-			log.Printf("command execution failed: %v", err)
-		}
-	case <-ctx.Done():
-		log.Println("Operation timed out or was canceled:", ctx.Err())
-		// Kill the command
-		if err := cmd.Process.Kill(); err != nil {
-			log.Printf("killing cmd failed: %v\n", err)
-		}
-	}
+	// Build the command with the full path and args
+	env := append(os.Environ(), "PATH=/bin:/usr/bin:/sbin:/usr/sbin")
+	must("command  Exec error: ", unix.Exec(cmdPath, cmdArgs, env))
 
 	// Cleanup always runs - moved outside the select statement
 	log.Println("[+] Cleaning up mounts...")
@@ -121,6 +98,23 @@ func spawnContainer() {
 	}
 
 	log.Println("[+] Cleaned up mounts")
+
+	log.Println("[+] Waiting 2 seconds before starting reaper...")
+	time.Sleep(2 * time.Second)
+
+	// Reap any zombie child processes before exiting
+	log.Println("[+] Starting zombie process reaper...")
+	zombieCount := 0
+	for {
+		var ws unix.WaitStatus
+		pid, err := unix.Wait4(-1, &ws, 0, nil)
+		if err != nil {
+			log.Printf("[+] Reaper finished, collected %d zombies", zombieCount)
+			break
+		}
+		zombieCount++
+		log.Printf("[+] Reaped zombie process with pid %d", pid)
+	}
 
 }
 
