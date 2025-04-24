@@ -12,8 +12,9 @@ import (
 func stage1UserNS() {
 
 	log.Println("[+] Creating container with user namespace...")
-
-	cmd := exec.Command("/proc/self/exe", append([]string{"child"}, os.Args[2:]...)...)
+	mountedProjectDir := randNowithDash()
+	rootfs := "/home/ciscoquan/Desktop/project-back/training/bocker-master/lizrice/alpine-rootfs/"
+	cmd := exec.Command("/proc/self/exe", append([]string{"child", mountedProjectDir, rootfs}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -42,7 +43,12 @@ func stage1UserNS() {
 	}
 
 	// Execute the child process
-	must("executing child process failed", cmd.Run())
+	// must("executing child process failed", cmd.Run())
+	must("executing child process failed", cmd.Start())
 
+	log.Printf("[+] Child PID: %d", cmd.Process.Pid) //remove this line
+	//fmt.Println("[+] Checking mounts after child exit...")
+	//clean(mountedProjectDir, rootfs)
+	must("executing child process failed", cmd.Wait())
 	fmt.Println("Container exited")
 }

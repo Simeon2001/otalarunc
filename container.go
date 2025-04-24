@@ -5,10 +5,16 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"time"
 )
 
 func spawnContainer() {
+	log.Println("[+] Spawning container...")
+	log.Println(os.Args)
+	// Ensure that we have received enough arguments
+	if len(os.Args) < 5 {
+		log.Fatal("Expected at least one argument")
+	}
+
 	must("set hostname", unix.Sethostname([]byte("otala-runc")))
 	// get the current working directory
 	cwd, err := os.Getwd()
@@ -17,8 +23,8 @@ func spawnContainer() {
 
 	// Define rootfs path
 	// rootfs := "/home/ciscoquan/alpine"
-	rootfs := "/home/ciscoquan/Desktop/project-back/training/bocker-master/lizrice/alpine-rootfs/"
-	mountedProjectDir := randNowithDash()
+	rootfs := os.Args[3]
+	mountedProjectDir := os.Args[2]
 	bindDest := rootfs + mountedProjectDir
 	// Check if the rootfs directory exists
 	if _, err := os.Stat(rootfs); os.IsNotExist(err) {
@@ -53,69 +59,16 @@ func spawnContainer() {
 	// Move to our mounted project folder
 	must("chdir to where cwd dir are failed: ", os.Chdir(mountedProjectDir))
 
-	cmdPath, err := exec.LookPath(os.Args[2])
+	cmdPath, err := exec.LookPath(os.Args[4])
 	must("cmdpath error: ", err)
 
 	// Build args for the target command (os.Args[2:] = command and its args)
-	cmdArgs := os.Args[2:]
+	cmdArgs := os.Args[5:]
 
 	// Build the command with the full path and args
 	env := append(os.Environ(), "PATH=/bin:/usr/bin:/sbin:/usr/sbin")
-	must("command  Exec error: ", unix.Exec(cmdPath, cmdArgs, env))
-
-	// Cleanup always runs - moved outside the select statement
-	log.Println("[+] Cleaning up mounts...")
-
-	// Unmount in reverse order (most specific to least specific)
-	// First unmount proc
-	if err := unix.Unmount("/proc", 0); err != nil {
-		log.Printf("[-] Failed to unmount proc: %v", err)
-	}
-
-	// Then unmount the project directory
-	if err := unix.Unmount(mountedProjectDir, unix.MNT_DETACH); err != nil {
-		log.Printf("[-] Failed to unmount bind path: %v", err)
-	} else {
-		log.Printf("[+] Unmounted %s", mountedProjectDir)
-	}
-
-	// Remove the mounted project directory
-	if err := os.RemoveAll(mountedProjectDir); err != nil {
-		log.Printf("[-] Delete mountedProjectDir failed: %v", err)
-	} else {
-		log.Printf("[+] Cleaned up %s", mountedProjectDir)
-	}
-
-	// Finally unmount rootfs, check if it exists first
-	if _, err := os.Stat(rootfs); err == nil {
-		if err := unix.Unmount(rootfs, unix.MNT_DETACH); err != nil {
-			log.Printf("[-] Failed to unmount rootfs: %v", err)
-		} else {
-			log.Printf("[+] Unmounted %s", rootfs)
-		}
-	} else {
-		log.Printf("[!] Rootfs path %s does not exist or can't be accessed: %v", rootfs, err)
-	}
-
-	log.Println("[+] Cleaned up mounts")
-
-	log.Println("[+] Waiting 2 seconds before starting reaper...")
-	time.Sleep(2 * time.Second)
-
-	// Reap any zombie child processes before exiting
-	log.Println("[+] Starting zombie process reaper...")
-	zombieCount := 0
-	for {
-		var ws unix.WaitStatus
-		pid, err := unix.Wait4(-1, &ws, 0, nil)
-		if err != nil {
-			log.Printf("[+] Reaper finished, collected %d zombies", zombieCount)
-			break
-		}
-		zombieCount++
-		log.Printf("[+] Reaped zombie process with pid %d", pid)
-	}
-
+	argv := append([]string{cmdPath}, cmdArgs...)
+	must("command  Exec error: ", unix.Exec(cmdPath, argv, env))
 }
 
 //tempDir := "/tmp/alpine-root"
