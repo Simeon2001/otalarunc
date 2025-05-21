@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+
+	"github.com/Simeon2001/AlpineCell/isolator"
 )
 
 //
@@ -18,9 +20,10 @@ import (
 func main() {
 	switch os.Args[1] {
 	case "run":
-		stage1UserNS()
+		InitProcess()
 	case "child":
-		spawnContainer()
+		isolator.SpawnContainer()
+
 	//case "child":
 	//	containerInitProcess()
 	default:
@@ -29,7 +32,7 @@ func main() {
 }
 func must(reply string, err error) {
 	if err != nil {
-		log.Printf("🔥 %s: %v", reply, err)
+		log.Printf("[❌] %s: %v", reply, err)
 		os.Exit(1)
 	}
 }
